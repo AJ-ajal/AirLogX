@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIRLOG X — Secure Air Quality Monitoring & Tamper-Evident Data Logging System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+
+  <!-- Hidden File Input for CSV Upload -->
+  <input type="file" id="csvFileInput" accept=".csv,text/csv">
+
+  <div class="app-container">
+
+    <!-- ====================================================================
+         1. Header HUD with Branding, Statuses, and Actions
+         ==================================================================== -->
+    <header class="header-hud">
+      <div class="brand-section">
+        <div class="brand-logo-hex">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            <path d="M8 11h.01M12 11h.01M16 11h.01M10 15c.8.7 1.8 1 2 1s1.2-.3 2-1"></path>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1>AIRLOG <span class="logo-x">X</span></h1>
+          <div class="tagline">Secure Air Quality Monitoring & Tamper-Evident Data Logging System</div>
+        </div>
+      </div>
+
+      <!-- System Status Badges -->
+      <div class="hud-status-group">
+        <div id="sourceModeBadge" class="badge-hud badge-mode-simulated" title="Data origin status">
+          <span class="beacon-dot beacon-amber"></span> Mode: Simulated Benchmark Data (25 Records)
+        </div>
+        <div class="badge-hud badge-device-standby" title="Hardware Interface">
+          <span class="beacon-dot beacon-cyan"></span> STM32 USB CDC: Standby (Awaiting Physical Link)
+        </div>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="hud-actions">
+        <button id="btnImportCsv" class="btn-cyber btn-primary" title="Import a local CSV file">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Import CSV
+        </button>
+
+        <button id="btnDemoData" class="btn-cyber" title="Restore clean benchmark dataset">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          Demo Data
+        </button>
+
+        <button id="btnSimulateTamper" class="btn-cyber btn-danger" title="Artificially modify Block #14 to demo tamper detection">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          Simulate Tamper
+        </button>
+
+        <button id="btnExportCsv" class="btn-cyber" title="Export current telemetry to CSV">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export CSV
+        </button>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         2. Four Sensor KPI Telemetry Cards
+         ==================================================================== -->
+    <section class="sensor-cards-grid">
+      <!-- Card 1: Air Quality (MQ-135) -->
+      <div class="sensor-card">
+        <div class="card-accent-strip strip-cyan"></div>
+        <div class="sensor-card-header">
+          <div class="sensor-meta">
+            <span class="sensor-chip">MQ-135 SENSOR</span>
+            <span class="sensor-name">Air Quality Index</span>
+          </div>
+          <div class="sensor-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="sensor-val-block">
+          <div class="sensor-val-main">
+            <span id="kpiAirVal">--</span>
+            <span class="sensor-unit">PPM</span>
+          </div>
+          <div id="kpiAirStatusPill" class="sensor-status-pill pill-good">● Normal Quality</div>
+        </div>
+        <div class="sensor-card-footer">
+          <span id="kpiAirRange">Min: -- | Max: -- | Avg: --</span>
+          <span>Target: NH₃, NOx, CO₂</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Temperature (BMP280) -->
+      <div class="sensor-card">
+        <div class="card-accent-strip strip-amber"></div>
+        <div class="sensor-card-header">
+          <div class="sensor-meta">
+            <span class="sensor-chip">BMP280 SENSOR</span>
+            <span class="sensor-name">Ambient Temperature</span>
+          </div>
+          <div class="sensor-icon" style="color: #f59e0b;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="sensor-val-block">
+          <div class="sensor-val-main">
+            <span id="kpiTempVal">--</span>
+            <span class="sensor-unit">°C</span>
+          </div>
+          <div id="kpiTempF" class="sensor-status-pill pill-neutral">-- °F</div>
+        </div>
+        <div class="sensor-card-footer">
+          <span id="kpiTempRange">Range: --</span>
+          <span>Accuracy: ±0.5 °C</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Barometric Pressure (BMP280) -->
+      <div class="sensor-card">
+        <div class="card-accent-strip strip-blue"></div>
+        <div class="sensor-card-header">
+          <div class="sensor-meta">
+            <span class="sensor-chip">BMP280 BAROMETER</span>
+            <span class="sensor-name">Atmospheric Pressure</span>
+          </div>
+          <div class="sensor-icon" style="color: #38bdf8;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"></circle>
+              <polyline points="12 7 12 12 15 15"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="sensor-val-block">
+          <div class="sensor-val-main">
+            <span id="kpiPresVal">--</span>
+            <span class="sensor-unit">hPa</span>
+          </div>
+          <div id="kpiPresAlt" class="sensor-status-pill pill-neutral">Est. Alt: --</div>
+        </div>
+        <div class="sensor-card-footer">
+          <span id="kpiPresRange">Min: -- | Max: --</span>
+          <span>1013.25 hPa Std Ref</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Real-Time Clock (DS3231) -->
+      <div class="sensor-card">
+        <div class="card-accent-strip strip-purple"></div>
+        <div class="sensor-card-header">
+          <div class="sensor-meta">
+            <span class="sensor-chip">DS3231 RTC</span>
+            <span class="sensor-name">Latest Log Timestamp</span>
+          </div>
+          <div class="sensor-icon" style="color: #a855f7;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="sensor-val-block">
+          <div class="sensor-val-main" style="font-size: 1.85rem;">
+            <span id="kpiTimeVal">--:--:--</span>
+          </div>
+          <div id="kpiDateVal" class="sensor-status-pill pill-neutral">----/--/--</div>
+        </div>
+        <div class="sensor-card-footer">
+          <span id="kpiIntervalVal">Total Log Blocks: #--</span>
+          <span>TCXO ±2ppm Quartz</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         3. Log Integrity & Cryptographic Verification Panel
+         ==================================================================== -->
+    <section class="integrity-panel">
+      <div class="integrity-panel-header">
+        <div class="integrity-title-block">
+          <div id="integrityShieldIcon" class="integrity-shield-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="m9 12 2 2 4-4"></path>
+            </svg>
+          </div>
+          <div class="integrity-titles">
+            <h2>Cryptographic Log Integrity & Chain Verification</h2>
+            <p>Mathematical tamper-detection verifying unbroken SHA-256 hash chains across all environmental log blocks.</p>
+          </div>
+        </div>
+
+        <div class="integrity-actions">
+          <button id="btnVerifyLog" class="btn-cyber btn-primary" title="Run dual verification on all records">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Verify Log Chain
+          </button>
+          <button id="btnDlSampleClean" class="btn-cyber" title="Download valid sample CSV">
+            Clean Sample CSV
+          </button>
+          <button id="btnDlSampleTampered" class="btn-cyber" title="Download tampered sample CSV">
+            Tampered Sample CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Integrity Stats -->
+      <div class="integrity-stats-grid">
+        <div class="integrity-stat-box">
+          <span class="stat-box-title">Total Records</span>
+          <span id="statTotalRecords" class="stat-box-val">25</span>
+          <span class="stat-box-sub">Append-only sequence</span>
+        </div>
+        <div class="integrity-stat-box">
+          <span class="stat-box-title">Authentic Blocks</span>
+          <span id="statVerifiedRecords" class="stat-box-val">-- / 25</span>
+          <span class="stat-box-sub">SHA-256 match status</span>
+        </div>
+        <div class="integrity-stat-box">
+          <span class="stat-box-title">Verification Time</span>
+          <span id="statVerifyTime" class="stat-box-val">-- ms</span>
+          <span class="stat-box-sub">Client Web Crypto API</span>
+        </div>
+        <div class="integrity-stat-box">
+          <span class="stat-box-title">Hashing Algorithm</span>
+          <span id="statCryptoAlgo" class="stat-box-val">SHA-256</span>
+          <span class="stat-box-sub">256-bit cryptographic digest</span>
+        </div>
+      </div>
+
+      <!-- Dual Verification Model Contrast -->
+      <div class="dual-check-container">
+        <!-- Structural Check Box -->
+        <div class="check-card">
+          <div class="check-card-header">
+            <span class="check-badge-tag tag-structural">1. Structural Format Check</span>
+            <span id="structuralStatusBadge" class="check-status-badge status-pending">● Ready</span>
+          </div>
+          <p id="structuralCheckDesc">Validates CSV column schema, non-null values, valid numeric ranges, 64-char hexadecimal formatting, and pointer continuity.</p>
+        </div>
+
+        <!-- Genuine Cryptographic SHA-256 Check Box -->
+        <div class="check-card">
+          <div class="check-card-header">
+            <span class="check-badge-tag tag-crypto">2. Genuine SHA-256 Verification</span>
+            <span id="cryptoStatusBadge" class="check-status-badge status-pending">● Ready</span>
+          </div>
+          <p id="cryptoCheckDesc">Recalculates bit-exact SHA-256 hashes for every individual payload using Web Crypto API and compares against stored block hashes.</p>
+        </div>
+      </div>
+
+      <!-- Verification Progress Bar -->
+      <div id="verifyProgressWrapper" class="verify-progress-wrapper">
+        <div class="progress-labels">
+          <span id="verifyProgressLabel">Recalculating SHA-256 digests...</span>
+          <span>100% Client-Side Web Crypto</span>
+        </div>
+        <div class="progress-track">
+          <div id="verifyProgressBarFill" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Tamper Alert Banner -->
+      <div id="tamperAlertBanner" class="tamper-alert-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <div id="tamperAlertMessage">
+          <strong>Tamper Alert:</strong> Cryptographic integrity failure detected!
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         4. Three Telemetry Charts Grid
+         ==================================================================== -->
+    <section class="charts-section">
+      <div class="section-title-hud">
+        <span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          Sensor Telemetry History & Dynamic Trends
+        </span>
+      </div>
+
+      <div class="charts-grid-3">
+        <!-- Chart 1: Air Quality (MQ-135) -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-info">
+              <h3>Air Quality History</h3>
+              <p>MQ-135 Gas Sensor (PPM)</p>
+            </div>
+            <div id="chartAirLatest" class="chart-latest-badge" style="color: var(--accent-cyan);">-- PPM</div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="chartAirQuality"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Temperature (BMP280) -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-info">
+              <h3>Temperature Profile</h3>
+              <p>BMP280 Ambient Sensor (°C)</p>
+            </div>
+            <div id="chartTempLatest" class="chart-latest-badge" style="color: #f59e0b;">-- °C</div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="chartTemperature"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 3: Atmospheric Pressure (BMP280) -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-info">
+              <h3>Barometric Pressure</h3>
+              <p>BMP280 Pressure Sensor (hPa)</p>
+            </div>
+            <div id="chartPresLatest" class="chart-latest-badge" style="color: #38bdf8;">-- hPa</div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="chartPressure"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         5. Device Hardware Architecture Panel
+         ==================================================================== -->
+    <section class="device-panel">
+      <div class="device-panel-header">
+        <div class="device-header-left">
+          <div class="device-header-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+              <rect x="9" y="9" width="6" height="6"></rect>
+              <line x1="9" y1="1" x2="9" y2="4"></line>
+              <line x1="15" y1="1" x2="15" y2="4"></line>
+              <line x1="9" y1="20" x2="9" y2="23"></line>
+              <line x1="15" y1="20" x2="15" y2="23"></line>
+              <line x1="20" y1="9" x2="23" y2="9"></line>
+              <line x1="20" y1="14" x2="23" y2="14"></line>
+              <line x1="1" y1="9" x2="4" y2="9"></line>
+              <line x1="1" y1="14" x2="4" y2="14"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Embedded Hardware & IoT Architecture</h2>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">Hardware components integrated into the AIRLOG X portable monitoring station.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-cards-grid">
+        <!-- Item 1: STM32 MCU -->
+        <div class="dev-item-card">
+          <div>
+            <span class="dev-badge-bus">CORE MCU</span>
+            <div class="dev-item-name" style="margin-top: 6px;">STM32F411CEU6</div>
+            <div class="dev-item-role">BlackPill Development Board</div>
+          </div>
+          <div class="dev-item-spec">ARM Cortex-M4F @ 100MHz • 512KB Flash • 128KB SRAM</div>
+          <div class="dev-item-status" style="color: #38bdf8;">● Firmware Ready</div>
+        </div>
+
+        <!-- Item 2: MQ-135 -->
+        <div class="dev-item-card">
+          <div>
+            <span class="dev-badge-bus">ANALOG ADC CH0</span>
+            <div class="dev-item-name" style="margin-top: 6px;">MQ-135 Gas Sensor</div>
+            <div class="dev-item-role">Air Pollution / AQI Detector</div>
+          </div>
+          <div class="dev-item-spec">Detects NH₃, NOx, Alcohol, Benzene, Smoke & CO₂</div>
+          <div class="dev-item-status" style="color: #34d399;">● Calibrated Sensing</div>
+        </div>
+
+        <!-- Item 3: BMP280 -->
+        <div class="dev-item-card">
+          <div>
+            <span class="dev-badge-bus">I2C (0x76)</span>
+            <div class="dev-item-name" style="margin-top: 6px;">Bosch BMP280</div>
+            <div class="dev-item-role">Digital Pressure & Temp</div>
+          </div>
+          <div class="dev-item-spec">300–1100 hPa • -40°C to +85°C • High Precision</div>
+          <div class="dev-item-status" style="color: #34d399;">● I2C Bus Active</div>
+        </div>
+
+        <!-- Item 4: DS3231 RTC -->
+        <div class="dev-item-card">
+          <div>
+            <span class="dev-badge-bus">I2C (0x68)</span>
+            <div class="dev-item-name" style="margin-top: 6px;">Maxim DS3231 RTC</div>
+            <div class="dev-item-role">Precision Real-Time Clock</div>
+          </div>
+          <div class="dev-item-spec">TCXO Quartz (±2ppm) • CR2032 Battery Backup</div>
+          <div class="dev-item-status" style="color: #34d399;">● Battery Backed</div>
+        </div>
+
+        <!-- Item 5: MicroSD Storage -->
+        <div class="dev-item-card">
+          <div>
+            <span class="dev-badge-bus">SPI BUS</span>
+            <div class="dev-item-name" style="margin-top: 6px;">MicroSD Storage Module</div>
+            <div class="dev-item-role">FAT32 Append-Only Ledger</div>
+          </div>
+          <div class="dev-item-spec">Non-Volatile Storage • Immutable CSV Hash Log</div>
+          <div class="dev-item-status" style="color: #34d399;">● Ledger Mounted</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         6. Environmental Log Ledger Table
+         ==================================================================== -->
+    <section class="table-panel">
+      <div class="table-panel-header">
+        <div>
+          <h2 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Cryptographic Environmental Log Ledger</h2>
+          <p style="font-size: 0.78rem; color: var(--text-muted);">Append-only hash-chained records. Click any row to inspect hash preimage details.</p>
+        </div>
+
+        <div class="table-filter-bar">
+          <div class="search-input-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="tableSearchInput" class="search-input" placeholder="Search by date, time, value, or hash...">
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive-container">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Block #</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Air (PPM)</th>
+              <th>Temp (°C)</th>
+              <th>Pressure (hPa)</th>
+              <th>Previous Hash (SHA-256)</th>
+              <th>Current Hash (SHA-256)</th>
+              <th>Chain Status</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+            <!-- Dynamically populated via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-footer">
+        <span id="tableRowCountBadge">Showing 25 of 25 records</span>
+        <span>Tip: Click on any row to open the cryptographic preimage inspector.</span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ====================================================================
+       7. Block Inspector Modal
+       ==================================================================== -->
+  <div id="blockModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalBlockTitle">Block #-- Cryptographic Inspector</h3>
+        <button id="modalCloseBtn" class="modal-close-btn" title="Close inspector">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div>
+          <div class="hash-row-title">Canonical Hashing Preimage (Payload)</div>
+          <div id="modalPreimage" class="preimage-code-box">--</div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 4px;">Formula: <code>index,date,time,air_quality,temperature,pressure,prev_hash</code></div>
+        </div>
+
+        <div class="hash-compare-box">
+          <div class="hash-row">
+            <div class="hash-row-title">Previous Block Hash (prev_hash)</div>
+            <div id="modalPrevHash" class="hash-val-text">--</div>
+          </div>
+
+          <div class="hash-row">
+            <div class="hash-row-title">Recorded Hash in Storage (curr_hash)</div>
+            <div id="modalRecordedHash" class="hash-val-text">--</div>
+          </div>
+
+          <div class="hash-row">
+            <div class="hash-row-title">Web Crypto Recalculated SHA-256</div>
+            <div id="modalComputedHash" class="hash-val-text">--</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; margin-top: 6px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Integrity Verdict:</span>
+          <div id="modalVerdict">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fallback Toast Container -->
+  <div id="hudToast" class="toast-hud"></div>
+
+  <!-- Load Local Chart.js with CDN Fallback -->
+  <script src="vendor/chart.umd.min.js"></script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
+
+  <!-- Application Logic Modules -->
+  <script src="js/sample-data.js"></script>
+  <script src="js/crypto-verifier.js"></script>
+  <script src="js/csv-parser.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
